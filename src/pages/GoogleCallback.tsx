@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
-/**
- * Página de callback OAuth do Google Calendar.
- * O Google redireciona para /auth/callback/google?code=...&state=userId
- * Esta página troca o code por tokens e os salva no banco.
- */
 export default function GoogleCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -17,7 +11,7 @@ export default function GoogleCallback() {
     async function handleCallback() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
-      const state = params.get("state"); // userId
+      const state = params.get("state");
       const error = params.get("error");
 
       if (error) {
@@ -33,27 +27,36 @@ export default function GoogleCallback() {
       }
 
       try {
-        // Troca o code por tokens via Edge Function
-        const { data, error: fnError } = await supabase.functions.invoke(
-          "google-calendar-integration",
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        const resp = await fetch(
+          `${supabaseUrl}/functions/v1/google-calendar-integration`,
           {
-            body: {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseKey}`,
+              "apikey": supabaseKey,
+            },
+            body: JSON.stringify({
               userId: state,
               action: "exchange_code",
               code,
               redirectUri: `${window.location.origin}/auth/callback/google`,
-            },
+            }),
           }
         );
 
-        if (fnError || data?.error) {
-          throw new Error(fnError?.message || data?.error || "Erro ao conectar");
+        const data = await resp.json();
+
+        if (!resp.ok || data?.error) {
+          throw new Error(data?.error || `Erro ${resp.status}`);
         }
 
         setStatus("success");
         setMessage("Google Calendar conectado com sucesso!");
-
-        setTimeout(() => navigate("/?section=perfil"), 2000);
+        setTimeout(() => navigate("/"), 2000);
 
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Erro desconhecido";
@@ -92,7 +95,7 @@ export default function GoogleCallback() {
             <p className="text-foreground font-semibold text-lg mb-2">Erro ao conectar</p>
             <p className="text-muted-foreground text-sm mb-6">{message}</p>
             <button
-              onClick={() => navigate("/?section=perfil")}
+              onClick={() => navigate("/")}
               className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-colors"
             >
               Voltar ao perfil
