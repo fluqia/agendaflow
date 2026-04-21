@@ -13,4 +13,12 @@ export default defineConfig({
     port: 5173,
     open: true,
   },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.code === "THIS_IS_UNDEFINED") return;
+        warn(warning);
+      },
+    },
+  },
 });
