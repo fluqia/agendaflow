@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { userId, action, booking } = await req.json();
+    const { userId, action, booking, code, redirectUri } = await req.json();
 
     if (!userId || !action) {
       return new Response(JSON.stringify({ error: "userId e action são obrigatórios" }), {
@@ -19,13 +19,51 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Cliente com service role para acessar tokens privados
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Busca tokens do Google do schema private
+    // ---- Trocar code por tokens (OAuth callback) ----
+    if (action === "exchange_code") {
+      if (!code || !redirectUri) {
+        return new Response(JSON.stringify({ error: "code e redirectUri são obrigatórios" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: Deno.env.get("GOOGLE_CLIENT_ID")!,
+          client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET")!,
+          code,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+
+      if (!tokenResp.ok) {
+        const err = await tokenResp.json();
+        throw new Error(`Erro ao trocar code: ${JSON.stringify(err)}`);
+      }
+
+      const tokens = await tokenResp.json();
+
+      await supabase.rpc("store_google_token", {
+        p_user_id: userId,
+        p_access_token: tokens.access_token,
+        p_refresh_token: tokens.refresh_token,
+        p_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ---- Busca e refresh de token ----
     const { data: tokenData, error: tokenError } = await supabase.rpc(
       "get_google_token_for_edge_function",
       { p_user_id: userId }
@@ -39,7 +77,6 @@ Deno.serve(async (req) => {
 
     let { access_token, refresh_token, expires_at } = tokenData[0];
 
-    // Refresh do token se expirado
     if (expires_at && new Date(expires_at) <= new Date()) {
       const refreshed = await refreshAccessToken(refresh_token);
       if (!refreshed) {
@@ -48,8 +85,6 @@ Deno.serve(async (req) => {
         });
       }
       access_token = refreshed.access_token;
-
-      // Atualiza token no banco
       await supabase.rpc("store_google_token", {
         p_user_id: userId,
         p_access_token: refreshed.access_token,
@@ -100,7 +135,7 @@ async function createCalendarEvent(accessToken: string, booking: any) {
 
   const event = {
     summary: `${booking.service_name} — ${booking.client_name}`,
-    description: `Cliente: ${booking.client_name}\nEmail: ${booking.client_email}\n${booking.client_phone ? `Telefone: ${booking.client_phone}` : ""}\n${booking.client_notes ? `\nObservações: ${booking.client_notes}` : ""}`,
+    description: `Cliente: ${booking.client_name}\nEmail: ${booking.client_email}\n${booking.client_phone ? `Telefone: ${booking.client_phone}` : ""}${booking.client_notes ? `\nObservações: ${booking.client_notes}` : ""}`,
     start: { dateTime: start.toISOString(), timeZone: booking.timezone || "America/Sao_Paulo" },
     end: { dateTime: end.toISOString(), timeZone: booking.timezone || "America/Sao_Paulo" },
     attendees: [{ email: booking.client_email }],

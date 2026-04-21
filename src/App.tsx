@@ -1,55 +1,33 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Toaster } from "sonner";
-import { Suspense, lazy } from "react";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import PublicBooking from "./pages/PublicBooking";
+import GoogleCallback from "./pages/GoogleCallback";
+import NotFound from "./pages/NotFound";
 
-const Auth = lazy(() => import("@/pages/Auth"));
-const Index = lazy(() => import("@/pages/Index"));
-const PublicBooking = lazy(() => import("@/pages/PublicBooking"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
+const queryClient = new QueryClient();
 
-function PageLoader() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-          <div className="w-6 h-6 rounded-md bg-primary animate-pulse" />
-        </div>
-        <p className="text-sm text-muted-foreground font-medium animate-pulse">
-          Carregando…
-        </p>
-      </div>
-    </div>
-  );
-}
-
-export default function App() {
-  return (
-    <BrowserRouter>
-      {/*
-        AuthProvider envolve TUDO — assim qualquer componente
-        pode usar useAuth() sem precisar de props drilling.
-      */}
-      <AuthProvider>
-        <Toaster
-          position="top-right"
-          richColors
-          closeButton
-          toastOptions={{
-            style: { fontFamily: "DM Sans, sans-serif" },
-          }}
-        />
-
-        <Suspense fallback={<PageLoader />}>
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <BrowserRouter>
+        <AuthProvider>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
             <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
             <Route path="/book/:slug" element={<PublicBooking />} />
-            <Route path="/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/auth/callback/google" element={<GoogleCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </Suspense>
-      </AuthProvider>
-    </BrowserRouter>
-  );
-}
+        </AuthProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
