@@ -234,42 +234,57 @@ export default function BookingsList() {
     },
   });
 
+  async function callEdgeFunction(body: object): Promise<any> {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data: { session } } = await supabase.auth.getSession();
+    const authToken = session?.access_token || supabaseKey;
+    const resp = await fetch(
+      `${supabaseUrl}/functions/v1/google-calendar-integration`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+          "apikey": supabaseKey,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    return resp.json();
+  }
+
   async function handleConfirm(id: string) {
     setActingId(id);
     try {
-      // 1. Confirma o agendamento
       await updateStatus({ id, status: "confirmed" });
 
       const booking = bookings.find((b) => b.id === id);
       if (!booking) return;
 
-      // 2. Tenta criar evento no Google Calendar (se conectado)
       const hasCalendar = await supabase.rpc("has_google_calendar_connected", {
         p_user_id: user!.id,
       });
 
       if (hasCalendar.data) {
         try {
-          const { data: calData } = await supabase.functions.invoke("google-calendar-integration", {
-            body: {
-              userId: user!.id,
-              action: "create",
-              booking: {
-                id: booking.id,
-                booking_date: booking.booking_date,
-                booking_time: booking.booking_time,
-                client_name: booking.client_name,
-                client_email: booking.client_email,
-                client_phone: booking.client_phone,
-                client_notes: booking.client_notes,
-                service_name: booking.services?.name,
-                duration: booking.services?.duration,
-                timezone: profile?.timezone || "America/Sao_Paulo",
-              },
+          const calData = await callEdgeFunction({
+            userId: user!.id,
+            action: "create",
+            booking: {
+              id: booking.id,
+              booking_date: booking.booking_date,
+              booking_time: booking.booking_time,
+              client_name: booking.client_name,
+              client_email: booking.client_email,
+              client_phone: booking.client_phone,
+              client_notes: booking.client_notes,
+              service_name: booking.services?.name,
+              duration: booking.services?.duration,
+              timezone: profile?.timezone || "America/Sao_Paulo",
             },
           });
 
-          // Salva eventId e meetLink no agendamento
           if (calData?.eventId) {
             await supabase
               .from("bookings")
@@ -281,14 +296,21 @@ export default function BookingsList() {
           }
         } catch (calErr) {
           console.error("Erro Google Calendar:", calErr);
-          // Não falha o fluxo principal se o Calendar der erro
         }
       }
 
-      // 3. Dispara email de confirmação
       try {
-        await supabase.functions.invoke("schedule-booking-emails", {
-          body: { bookingId: id },
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const { data: { session } } = await supabase.auth.getSession();
+        await fetch(`${supabaseUrl}/functions/v1/schedule-booking-emails`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token || supabaseKey}`,
+            "apikey": supabaseKey,
+          },
+          body: JSON.stringify({ bookingId: id }),
         });
       } catch (emailErr) {
         console.error("Erro ao agendar emails:", emailErr);
@@ -309,15 +331,12 @@ export default function BookingsList() {
     try {
       const booking = bookings.find((b) => b.id === id);
 
-      // Remove evento do Google Calendar se existir
       if (booking?.google_event_id) {
         try {
-          await supabase.functions.invoke("google-calendar-integration", {
-            body: {
-              userId: user!.id,
-              action: "delete",
-              booking: { google_event_id: booking.google_event_id },
-            },
+          await callEdgeFunction({
+            userId: user!.id,
+            action: "delete",
+            booking: { google_event_id: booking.google_event_id },
           });
         } catch (calErr) {
           console.error("Erro ao deletar evento:", calErr);
