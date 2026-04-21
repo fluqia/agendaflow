@@ -113,7 +113,7 @@ export default function Auth() {
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
             <Calendar className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="font-display text-2xl font-bold text-white">Agendfy</span>
+          <span className="font-display text-2xl font-bold text-white">AgendaFlow</span>
         </motion.div>
 
         {/* Tagline central */}
@@ -170,7 +170,7 @@ export default function Auth() {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Calendar className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-display text-xl font-bold text-foreground">Agendfy</span>
+            <span className="font-display text-xl font-bold text-foreground">AgendaFlow</span>
           </div>
 
           {/* Cabeçalho */}
