@@ -237,15 +237,13 @@ export default function BookingsList() {
   async function callEdgeFunction(body: object): Promise<any> {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const { data: { session } } = await supabase.auth.getSession();
-    const authToken = session?.access_token || supabaseKey;
     const resp = await fetch(
       `${supabaseUrl}/functions/v1/google-calendar-integration`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`,
+          "Authorization": `Bearer ${supabaseKey}`,
           "apikey": supabaseKey,
         },
         body: JSON.stringify(body),
