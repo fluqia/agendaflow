@@ -220,7 +220,7 @@ export default function PublicBooking() {
         p_service_id: selectedService!.id,
       });
       if (error) throw error;
-      return (data || []) as SlotResult[];
+      return (data || []).map((s: any) => ({ slot_time: s.slot_time, is_available: true })) as SlotResult[];
     },
     enabled: !!provider?.user_id && !!selectedDate && !!selectedService,
   });
