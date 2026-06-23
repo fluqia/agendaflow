@@ -63,26 +63,31 @@ export default function ProfileSettings() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  function connectGoogleCalendar() {
-    const clientId = import.meta.env.VITE_SUPABASE_URL
-      ? "901663362876-9irlhm4orh44qpc8q5dmod2rpa2jv9ce.apps.googleusercontent.com"
-      : "";
-
-    const redirectUri = `${window.location.origin}/auth/callback/google`;
-    const scope = "https://www.googleapis.com/auth/calendar.events";
-    const state = user!.id;
-
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${clientId}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=code` +
-      `&scope=${encodeURIComponent(scope)}` +
-      `&access_type=offline` +
-      `&prompt=consent` +
-      `&state=${state}`;
-
-    window.location.href = url;
+function connectGoogleCalendar() {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    toast.error("Google Client ID não configurado.");
+    return;
   }
+
+  const nonce = crypto.randomUUID();
+  sessionStorage.setItem("oauth_state_nonce", nonce);
+  sessionStorage.setItem("oauth_user_id", user!.id);
+
+  const redirectUri = `${window.location.origin}/auth/callback/google`;
+  const scope = "https://www.googleapis.com/auth/calendar.events";
+
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${clientId}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent(scope)}` +
+    `&access_type=offline` +
+    `&prompt=consent` +
+    `&state=${nonce}`;
+
+  window.location.href = url;
+}
 
   /* ---- Perfil ---- */
   function handleBusinessNameChange(value: string) {

@@ -26,6 +26,18 @@ export default function GoogleCallback() {
         return;
       }
 
+      // Valida o nonce para prevenir CSRF
+      const savedNonce = sessionStorage.getItem("oauth_state_nonce");
+      const savedUserId = sessionStorage.getItem("oauth_user_id");
+      sessionStorage.removeItem("oauth_state_nonce");
+      sessionStorage.removeItem("oauth_user_id");
+
+      if (!savedNonce || state !== savedNonce || !savedUserId) {
+        setStatus("error");
+        setMessage("Sessão inválida. Tente conectar novamente.");
+        return;
+      }
+
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -40,7 +52,7 @@ export default function GoogleCallback() {
               "apikey": supabaseKey,
             },
             body: JSON.stringify({
-              userId: state,
+              userId: savedUserId,
               action: "exchange_code",
               code,
               redirectUri: `${window.location.origin}/auth/callback/google`,
