@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://agendaflow-nu.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -111,12 +116,12 @@ async function sendConfirmationEmail(booking: any) {
     <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; background: #0f1210; color: #f0fdf4; padding: 40px 32px; border-radius: 12px;">
       <div style="margin-bottom: 32px;">
         <h1 style="font-size: 24px; font-weight: 700; color: #34d399; margin: 0 0 8px;">Agendamento confirmado!</h1>
-        <p style="color: rgba(240,253,244,0.6); margin: 0;">Olá, ${booking.client_name}. Seu agendamento foi recebido com sucesso.</p>
+        <p style="color: rgba(240,253,244,0.6); margin: 0;">Olá, ${escapeHtml(booking.client_name)}. Seu agendamento foi recebido com sucesso.</p>
       </div>
       <div style="background: #141a15; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
         <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 16px; color: #f0fdf4;">Detalhes do agendamento</h2>
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Serviço</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${service?.name}</td></tr>
+          <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Serviço</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${service?.name ? escapeHtml(service.name) : ""}</td></tr>
           <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Data</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${dateStr}</td></tr>
           <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Horário</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${booking.booking_time.slice(0,5)}</td></tr>
           <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Duração</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${service?.duration} minutos</td></tr>

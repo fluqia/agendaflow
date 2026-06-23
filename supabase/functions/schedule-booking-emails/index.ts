@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+}
+
 Deno.serve(async (req) => {
   // Só permite chamadas internas via service_role
   const authHeader = req.headers.get("Authorization");
@@ -75,10 +80,10 @@ async function sendReminderEmail(email: any) {
       <h1 style="font-size: 22px; font-weight: 700; color: #34d399; margin: 0 0 8px;">
         ${isYesterday ? "Seu agendamento é amanhã!" : "Seu agendamento é hoje!"}
       </h1>
-      <p style="color: rgba(240,253,244,0.6); margin: 0 0 24px;">Olá, ${booking.client_name}. Este é um lembrete do seu agendamento.</p>
+      <p style="color: rgba(240,253,244,0.6); margin: 0 0 24px;">Olá, ${escapeHtml(booking.client_name)}. Este é um lembrete do seu agendamento.</p>
       <div style="background: #141a15; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Serviço</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${service?.name}</td></tr>
+          <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Serviço</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${service?.name ? escapeHtml(service.name) : ""}</td></tr>
           <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Data</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${dateStr}</td></tr>
           <tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Horário</td><td style="padding: 6px 0; font-size: 14px; text-align: right;">${booking.booking_time.slice(0,5)}</td></tr>
           ${booking.meet_link ? `<tr><td style="padding: 6px 0; color: rgba(240,253,244,0.5); font-size: 14px;">Google Meet</td><td style="padding: 6px 0; font-size: 14px; text-align: right;"><a href="${booking.meet_link}" style="color: #34d399;">Entrar na reunião</a></td></tr>` : ""}
