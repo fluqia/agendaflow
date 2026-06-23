@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://agendaflow-nu.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -11,6 +11,32 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Valida o JWT do usuário autenticado
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Token de autenticação obrigatório" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Verifica quem é o usuário autenticado pelo JWT
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Token inválido" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { userId, action, booking, code, redirectUri } = await req.json();
 
     if (!userId || !action) {
@@ -19,10 +45,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // Garante que o userId do body bate com o usuário autenticado
+    if (userId !== user.id) {
+      return new Response(JSON.stringify({ error: "Acesso negado" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // ---- Trocar code por tokens (OAuth callback) ----
     if (action === "exchange_code") {
@@ -129,7 +157,7 @@ async function refreshAccessToken(refreshToken: string) {
 }
 
 async function createCalendarEvent(accessToken: string, booking: any) {
-  const startDateTime = `${booking.booking_date}T${booking.booking_time}`;
+  const startDateTime = `${booking.booking_date}T${booking.booking_time}-03:00`;
   const start = new Date(startDateTime);
   const end = new Date(start.getTime() + booking.duration * 60000);
 

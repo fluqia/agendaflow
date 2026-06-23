@@ -1,13 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  // Só permite chamadas internas via service_role
+  const authHeader = req.headers.get("Authorization");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
+    return new Response(JSON.stringify({ error: "Acesso negado" }), {
+      status: 403, headers: { "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      serviceRoleKey
     );
 
-    // Busca emails pendentes que já deveriam ter sido enviados
     const { data: pendingEmails, error } = await supabase
       .from("booking_emails")
       .select("*, bookings(*, services(name, duration))")
@@ -28,19 +36,11 @@ Deno.serve(async (_req) => {
     for (const email of pendingEmails) {
       try {
         await sendReminderEmail(email);
-
-        await supabase
-          .from("booking_emails")
-          .update({ status: "sent" })
-          .eq("id", email.id);
-
+        await supabase.from("booking_emails").update({ status: "sent" }).eq("id", email.id);
         processed++;
       } catch (err) {
         console.error(`Erro ao enviar email ${email.id}:`, err);
-        await supabase
-          .from("booking_emails")
-          .update({ status: "failed" })
-          .eq("id", email.id);
+        await supabase.from("booking_emails").update({ status: "failed" }).eq("id", email.id);
         failed++;
       }
     }

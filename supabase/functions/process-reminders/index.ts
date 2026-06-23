@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://agendaflow-nu.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -11,18 +11,40 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { bookingId } = await req.json();
+    // Valida o JWT do usuário autenticado
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Token de autenticação obrigatório" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Busca dados do agendamento
+    // Verifica o usuário autenticado
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Token inválido" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { bookingId } = await req.json();
+
+    // Busca o agendamento e valida que pertence ao usuário autenticado
     const { data: booking, error } = await supabase
       .from("bookings")
       .select("*, services(name, duration, price)")
       .eq("id", bookingId)
+      .eq("user_id", user.id) // garante que o booking é do usuário autenticado
       .single();
 
     if (error || !booking) {
@@ -31,10 +53,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Envia email de confirmação imediato
     await sendConfirmationEmail(booking);
 
-    // Agenda lembretes
     const bookingDate = new Date(`${booking.booking_date}T${booking.booking_time}`);
 
     const dayBefore = new Date(bookingDate);
@@ -45,7 +65,6 @@ Deno.serve(async (req) => {
     sameDay.setHours(8, 0, 0, 0);
 
     const now = new Date();
-
     const emailsToSchedule = [];
 
     if (dayBefore > now) {
